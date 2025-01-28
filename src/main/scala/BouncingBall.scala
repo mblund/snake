@@ -40,6 +40,7 @@ object BouncingBall {
     val bottomLeft = "└"
     val bottomRight = "┘"
 
+    print("\u001b[33m") // Set border color to yellow
     // Move cursor to top-left & draw top border
     print("\u001b[H")
     println(topLeft + horizontal * (cols - 2) + topRight)
@@ -75,6 +76,7 @@ object BouncingBall {
       print("\u001b[2J") // Clear screen
       drawBorder(rows, cols) // Draw border each frame
 
+      print("\u001b[31m") // Set ball color to red
       // Move cursor and print ball inside borders
       print(s"\u001b[${y};${x}H●")
 
@@ -97,8 +99,11 @@ object BouncingBall {
     System.out.flush()
   }
 
-  /* Restore cursor visibility when exiting */
-  def restoreCursor(): Unit = {
+  def exitGracefully(): Unit = {
+    val (_, rows) = getTerminalSize
+    print(s"\u001b[$rows;1H")
+    print("\u001b[39m") // Reset text color
+    println("\nExiting...")
     print("\u001b[?25h") // Show cursor again
     System.out.flush()
   }
@@ -106,8 +111,8 @@ object BouncingBall {
   /* Register signal handlers for `Ctrl+C` (SIGINT) and `Ctrl+Z` (SIGTSTP) */
   def registerSignalHandlers(): Unit = {
     def signalHandler(sig: CInt): Unit = {
-      restoreCursor() // Show cursor when program exits
-      exit(0) // Exit program safely
+      exitGracefully()
+      exit(0)
     }
 
     signal(SIGINT, CFuncPtr1.fromScalaFunction(signalHandler)) // Handle Ctrl+C
