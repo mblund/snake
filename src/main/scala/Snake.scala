@@ -10,6 +10,7 @@ object SnakeGame {
 
   def main(args: Array[String]): Unit = {
     registerSignalHandlers()
+    showWelcomeScreen()
     runGame()
   }
 
@@ -54,17 +55,52 @@ object SnakeGame {
     println(bottomLeft + horizontal * (cols - 2) + bottomRight)
   }
 
+  def showWelcomeScreen(): Unit = {
+    configureTerminal()
+    hideCursor() // Hide cursor when running game
+
+    val (rows, cols) = getTerminalSize
+    clearScreen()
+    drawBorder(rows, cols)
+
+    val welcomeMessage = "Welcome to Snake!"
+    val promptMessage = "Use a,s,d,w to move"
+    val promptMessage2 = "Press SPACE to play"
+    val welcomeRow = rows / 2 - 1
+    val promptRow = rows / 2 + 3
+    val promptRow2 = rows / 2 + 5
+    val welcomeCol = (cols - welcomeMessage.length) / 2
+    val promptCol = (cols - promptMessage.length) / 2
+    val promptCol2 = (cols - promptMessage2.length) / 2
+
+    print(s"\u001b[${welcomeRow};${welcomeCol}H$welcomeMessage")
+    print(s"\u001b[${promptRow};${promptCol}H$promptMessage")
+    print(s"\u001b[${promptRow2};${promptCol2}H$promptMessage2")
+    System.out.flush()
+
+    // Wait for space key press
+    var key = ""
+    while (key != " ") {
+      key = readKey()
+      usleep(10000.toUInt) // 10ms delay to prevent busy waiting
+    }
+
+    showCursor() // Show cursor again
+  }
+
   def runGame(): Unit = {
+    clearScreen()
     configureTerminal()
     hideCursor() // Hide cursor when running game
 
     // Get terminal size and initialize snake position
     var (startRows, startCols) = getTerminalSize
-    var snake = List((startCols / 2, startRows / 2))
+    var snake =
+      List((startCols / 2, startRows / 2), (startCols / 2 - 1, startRows / 2))
     var direction = (1, 0)
     var food = placeFood(startRows, startCols, snake)
 
-    drawBorder(startRows, startCols) // Draw border each frame
+    drawBorder(startRows, startCols)
     while (true) {
 
       val key = readKey()
@@ -81,6 +117,7 @@ object SnakeGame {
       if (rows != startRows || cols != startCols) {
         startCols = cols
         startRows = rows
+        clearScreen()
         drawBorder(rows, cols)
       }
 
@@ -93,7 +130,7 @@ object SnakeGame {
         newHead._1 <= 1 || newHead._1 >= cols - 1 || newHead._2 <= 1 || newHead._2 >= rows - 1 || snake.tail
           .contains(newHead)
       ) {
-        exitGracefully()
+        showGameOverScreen()
       }
 
       // Check if snake eats food
@@ -132,6 +169,16 @@ object SnakeGame {
   /* Hide cursor when running game */
   def hideCursor(): Unit = {
     print("\u001b[?25l") // Hide cursor
+    System.out.flush()
+  }
+
+  def showCursor(): Unit = {
+    print("\u001b[?25h") // Show cursor
+    System.out.flush()
+  }
+
+  def clearScreen(): Unit = {
+    print("\u001b[2J") // Clear screen
     System.out.flush()
   }
 
@@ -195,6 +242,41 @@ object SnakeGame {
       str
     } else {
       ""
+    }
+  }
+
+  def showGameOverScreen(): Unit = {
+    val (rows, cols) = getTerminalSize
+    clearScreen()
+    drawBorder(rows, cols)
+
+    val gameOverMessage = "Game Over!"
+    val promptMessage = "Press SPACE to play again"
+    val promptMessage2 = "(q to quit)"
+    val gameOverRow = rows / 2 - 1
+    val promptRow = rows / 2 + 1
+    val promptRow2 = rows / 2 + 2
+    val gameOverCol = (cols - gameOverMessage.length) / 2
+    val promptCol = (cols - promptMessage.length) / 2
+    val promptCol2 = (cols - promptMessage2.length) / 2
+
+    print(s"\u001b[${gameOverRow};${gameOverCol}H$gameOverMessage")
+    print(s"\u001b[${promptRow};${promptCol}H$promptMessage")
+    print(s"\u001b[${promptRow2};${promptCol2}H$promptMessage2")
+    System.out.flush()
+
+    // Wait for space key press or 'q' to quit
+    var key = ""
+    while (key != " " && key != "q") {
+      key = readKey()
+      usleep(10000.toUInt) // 10ms delay to prevent busy waiting
+    }
+
+    if (key == "q") {
+      exitGracefully()
+    } else {
+      clearScreen()
+      runGame()
     }
   }
 }

@@ -13,5 +13,5 @@ nativeConfig ~= { c =>
   c.withLTO(LTO.none) // thin
     .withMode(Mode.debug) // releaseFast
     .withGC(GC.immix) // commix
-    .withBaseName("bouncing-ball") // default is project name
+    .withBaseName("snake") // default is project name
 }
