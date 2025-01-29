@@ -1,16 +1,16 @@
 import scala.scalanative.libc.signal.{SIGINT, signal}
-import scala.scalanative.libc.stdlib.exit
 import scala.scalanative.posix.signal.SIGTSTP
-import scala.scalanative.unsafe.*
-import scala.scalanative.unsigned.*
 import scala.scalanative.posix.sys.ioctl.*
 import scala.scalanative.posix.unistd.*
+import scala.scalanative.unsafe.*
+import scala.scalanative.unsigned.*
+import scala.util.Random
 
-object BouncingBall {
+object SnakeGame {
 
   def main(args: Array[String]): Unit = {
     registerSignalHandlers()
-    runSimulation()
+    runGame()
   }
 
   private val STDOUT_FILENO: Int = 1
@@ -54,28 +54,27 @@ object BouncingBall {
     println(bottomLeft + horizontal * (cols - 2) + bottomRight)
   }
 
-  def runSimulation(): Unit = {
+  def runGame(): Unit = {
     configureTerminal()
-    hideCursor() // Hide cursor when running simulation
+    hideCursor() // Hide cursor when running game
 
-    // Get terminal size and initialize ball position
+    // Get terminal size and initialize snake position
     var (startRows, startCols) = getTerminalSize
-    var x = startCols / 2
-    var y = startRows / 2
-    var dx = 1
-    var dy = 1
+    var snake = List((startCols / 2, startRows / 2))
+    var direction = (1, 0)
+    var food = placeFood(startRows, startCols, snake)
 
     drawBorder(startRows, startCols) // Draw border each frame
     while (true) {
 
       val key = readKey()
       key match {
-        case "w" => dy = -1 // Move Up
-        case "s" => dy = 1 // Move Down
-        case "d" => dx = 1 // Move Right
-        case "a" => dx = -1 // Move Left
-        case "q" => exitGracefully()
-        case _   => // Ignore other keys
+        case "w" if direction != (0, 1)  => direction = (0, -1) // Move Up
+        case "s" if direction != (0, -1) => direction = (0, 1) // Move Down
+        case "d" if direction != (-1, 0) => direction = (1, 0) // Move Right
+        case "a" if direction != (1, 0)  => direction = (-1, 0) // Move Left
+        case "q"                         => exitGracefully()
+        case _                           => // Ignore other keys
       }
 
       val (rows, cols) = getTerminalSize
@@ -85,33 +84,52 @@ object BouncingBall {
         drawBorder(rows, cols)
       }
 
-      // Ensure the ball stays inside new terminal bounds
-      if (x < 2) x = 2
-      if (x >= cols - 1) x = cols - 2
-      if (y < 2) y = 2
-      if (y >= rows - 1) y = rows - 2
+      // Update snake position
+      val newHead = (snake.head._1 + direction._1, snake.head._2 + direction._2)
+      snake = newHead :: snake
 
-      // Move cursor and print space to erase ball
-      print(s"\u001b[${y};${x}H ")
+      // Check for collisions
+      if (
+        newHead._1 <= 1 || newHead._1 >= cols - 1 || newHead._2 <= 1 || newHead._2 >= rows - 1 || snake.tail
+          .contains(newHead)
+      ) {
+        exitGracefully()
+      }
 
-      // Update position
-      x += dx
-      y += dy
+      // Check if snake eats food
+      if (newHead == food) {
+        food = placeFood(rows, cols, snake)
+      } else {
+        val tail = snake.last
+        print(s"\u001b[${tail._2};${tail._1}H ")
+        snake = snake.init
+      }
 
-      print("\u001b[31m") // Set ball color to red
-      // Move cursor and print ball inside borders
-      print(s"\u001b[${y};${x}H●")
-
-      // Bounce off the borders
-      if (x <= 2 || x >= cols - 2) dx = -dx
-      if (y <= 2 || y >= rows - 2) dy = -dy
+      // Draw snake and food
+      print("\u001b[32m") // Set snake color to green
+      snake.foreach { case (x, y) => print(s"\u001b[${y};${x}H●") }
+      print("\u001b[31m") // Set food color to red
+      print(s"\u001b[${food._2};${food._1}H●")
 
       System.out.flush()
-      usleep(20000.toUInt) // 20ms delay
+      usleep(100000.toUInt) // 100ms delay
     }
   }
 
-  /* Hide cursor when running simulation */
+  def placeFood(rows: Int, cols: Int, snake: List[(Int, Int)]): (Int, Int) = {
+    val rand = new Random()
+    var food = (rand.nextInt(cols - 2) + 1, rand.nextInt(rows - 2) + 1)
+    while (
+      snake.contains(
+        food
+      ) || food._1 <= 1 || food._1 >= cols - 1 || food._2 <= 1 || food._2 >= rows - 1
+    ) {
+      food = (rand.nextInt(cols - 2) + 1, rand.nextInt(rows - 2) + 1)
+    }
+    food
+  }
+
+  /* Hide cursor when running game */
   def hideCursor(): Unit = {
     print("\u001b[?25l") // Hide cursor
     System.out.flush()
@@ -138,11 +156,11 @@ object BouncingBall {
     signal(SIGTSTP, CFuncPtr1.fromScalaFunction(signalHandler)) // Handle Ctrl+Z
   }
 
+  import scala.scalanative.posix.fcntl.*
+  import scala.scalanative.posix.termios.*
+  import scala.scalanative.posix.unistd.*
   import scala.scalanative.unsafe.*
   import scala.scalanative.unsigned.*
-  import scala.scalanative.posix.termios.*
-  import scala.scalanative.posix.fcntl.*
-  import scala.scalanative.posix.unistd.*
 
   def configureTerminal(): Unit = {
     val term = stackalloc[termios]()
